@@ -1,0 +1,16 @@
+Package: LOCOM
+Type: Package
+Title: A logistic regression model for testing differential abundance in compositional microbiome data
+Version: 1.1
+Date: 2022-07-27
+Depends: R (>= 3.5.0), metap, utils, psych, permute, parallel
+Author: Yingtian Hu, Yi-Juan Hu, Glen A Satten
+Maintainer: Yingtian Hu <yingtian.hu@emory.edu>, Yi-Juan Hu <yijuan.hu@emory.edu>
+Description: The LOCOM package provides the locom function for testing differential abundance of individual taxa (or OTUs) that is based on the log ratio of relative abundances between each taxon and a reference taxon. It also provides a global test of whether there is any differential abundance in a microbiome community. The tests accommodate continuous and discrete (binary) traits of interest and allows adjustment of confounders.
+License: GPL (>=2)
+Imports: Rcpp (>= 1.0.6), RcppArmadillo, metap, utils, psych, permute,
+        parallel
+LinkingTo: Rcpp, RcppArmadillo
+RoxygenNote: 7.2.0
+NeedsCompilation: yes
+Packaged: 2022-07-27 14:31:33 UTC; yhu245
