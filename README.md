@@ -12,7 +12,7 @@ BiocManager::install("BiocParallel")
 devtools::install_github("yijuanhu/LOCOM")
 ```
 
-## An Example
+## An example
 
 Apply LOCOM to a dataset from the study of smoking effects on the microbiome of the human upper respiratory tract. (Charlson et al., 2010). 
 
