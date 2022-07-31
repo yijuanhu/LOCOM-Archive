@@ -27,8 +27,9 @@
 #'   statistic exceeds the observed test statistic) to obtain before stopping the permutation procedure. The
 #'   default is 100.
 #' @param n.cores the number of cores to be used for parallel computing. The default is 1.
-#' @param adjustment method to adjust p-value: Benjamini-Hochberg procedure (BH) or Sandve's adjustment 
 #' @param ref.otu reference OTU. The default is NULL, which means the most abundant OTU will be chosen as the reference OTU to fit the model.
+#' @param adjustment method to adjust p-value: Benjamini-Hochberg procedure (BH) or Sandve's adjustment 
+#' @param Firth.thresh a real value between 0 and 1; Firth correction is applied to taxa with prevalence (percentage of nonzeros) less than Firth.thres. The default is 0.4.
 #' @return A list consisting of
 #' \itemize{
 #'   \item effect.size - effect size at each OTU, i.e., beta_j,1 - median_j'=1,...J(beta_j',1)
@@ -92,7 +93,7 @@
 locom <- function(otu.table, Y, C = NULL,
                   fdr.nominal = 0.2, seed = NULL, prev.cut = 0.2,
                   n.perm.max = NULL, n.rej.stop = 100, n.cores = 4, ref.otu = NULL,
-                  adjustment = "BH"){
+                  adjustment = "BH", Firth.thresh = 0.4){
     
     # remove zero OTUs
     
@@ -131,13 +132,26 @@ locom <- function(otu.table, Y, C = NULL,
     weight = (otu.table + otu.table[,ref.otu])
     tol = 1e-6
     iter_max = 50
-    Firth_thresh = 0.4
     prop.presence <- colMeans(otu.table>0)
     
-    res.obs <- Newton(freq_table = freq.table.ref, X = X, XX = XX, 
-                      beta_init = array(0, dim = c(n.X, n.otu)), weight = weight,
-                      tol = tol, iter_max = iter_max, Firth_thresh = Firth_thresh,
-                      prop_presence = prop.presence)
+    
+    res.obs <- tryCatch(
+            {
+            Newton(freq_table = freq.table.ref, X = X, XX = XX, 
+                       beta_init = array(0, dim = c(n.X, n.otu)), weight = weight,
+                       tol = tol, iter_max = iter_max, Firth_thresh = Firth.thresh,
+                       prop_presence = prop.presence)
+            },
+            error=function(cond) {
+                message("Warning: There may be too few read count at a level of covariate value(s) (i.e., separation issue). You may increase the Firth.thresh value (e.g., to 1) and fit the model again.")
+                message("Here's the original error message:")
+                message(cond)
+                return(NA)
+            }
+    )
+    if(any(is.na(res.obs)) == TRUE){
+        return(NA)
+    }
     
     beta <- res.obs[1,]
     beta <- beta - median(beta)
@@ -164,12 +178,18 @@ locom <- function(otu.table, Y, C = NULL,
     
     
     parallel.perm <- function(i) {
-        
-        perm_Newton(freq_table = freq.table.ref, Yr = Yr, X = X, XX = XX, 
-                    beta_init = beta_init, weight = weight,
-                    perm = perm.mat[, (i*n.perm.core + 1):((i+1)*n.perm.core)],
-                    tol = tol, iter_max = iter_max, Firth_thresh = Firth_thresh, 
-                    prop_presence = prop.presence)
+        tryCatch(
+            {
+                perm_Newton(freq_table = freq.table.ref, Yr = Yr, X = X, XX = XX, 
+                            beta_init = beta_init, weight = weight,
+                            perm = perm.mat[, (i*n.perm.core + 1):((i+1)*n.perm.core)],
+                            tol = tol, iter_max = iter_max, Firth_thresh = Firth.thresh, 
+                            prop_presence = prop.presence)
+            },
+            error=function(cond) {
+                return(list(res = NA, error =cond))
+            }
+        )    
     } # parallel.perm
 
     
@@ -188,15 +208,38 @@ locom <- function(otu.table, Y, C = NULL,
             } else {
                 parallel.stat = mclapply(0:(n.cores - 1), parallel.perm, mc.cores = n.cores)
             }
+            
+            # check whether there is any error in a single core
+            error.list <- unlist(lapply(parallel.stat, function(x) any(is.na(x) == TRUE)))
+            # if there is a error, then print out message and error
+            if(sum(error.list) > 0){
+                error.idx <- min(which(error.list == TRUE))
+                message("Warning: There may be too few read count at a level of covariate value(s) (i.e., separation issue). You may increase the Firth.thresh value (e.g., to 1) and fit the model again.")
+                message("Here's the original error message:")
+                message(parallel.stat[[error.idx]][2])
+                return(NA)
+            }
             res.perm <- do.call(rbind, parallel.stat)
             
         } else {
-            
-            res.perm <- perm_Newton(freq_table = freq.table.ref, Yr = Yr, X = X, XX = XX,
-                                    beta_init = beta_init, weight = weight,
-                                    perm = perm.mat,
-                                    tol = tol, iter_max = iter_max, Firth_thresh = Firth_thresh,
-                                    prop_presence = prop.presence)
+            res.perm <- tryCatch(
+                            {
+                                perm_Newton(freq_table = freq.table.ref, Yr = Yr, X = X, XX = XX,
+                                            beta_init = beta_init, weight = weight,
+                                            perm = perm.mat,
+                                            tol = tol, iter_max = iter_max, Firth_thresh = Firth.thresh,
+                                            prop_presence = prop.presence)
+                            },
+                            error=function(cond) {
+                                message("Warning: There may be too few read count at a level of covariate value(s) (i.e., separation issue). You may increase the Firth.thresh value (e.g., to 1) and fit the model again.")
+                                message("Here's the original error message:")
+                                message(cond)
+                                return(NA)
+                            }
+                       )
+            if(any(is.na(res.perm)) == TRUE){
+                return(NA)
+            }
         }
         
         n.perm.completed <- i.block*n.perm.block
