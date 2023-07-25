@@ -41,7 +41,7 @@ if (length(filter.out.otu) > 0) {
 }
 
 # running locom
-res <- locom(otu.table = otu.table.filter, Y = Y, C = C[, 1], fdr.nominal = 0.1, seed = 1, adjustment = "Sandev", n.cores = 4)
+res <- locom(otu.table = otu.table.filter, Y = Y, C = C[, 1], fdr.nominal = 0.1, seed = 1)
 
 # summarizing results
 # ordering the detected OTUs by their p-values. If no OTU is detected, we can still provide a summary table for
